@@ -34,15 +34,15 @@ groups() ->
 	NumFiles = length(get_test_files()),
 	NumDisabledTlsFiles = length(get_disabled_tls_test_files()),
 	[
-		{http, [parallel], CommonTests
-			++ [{testcase, wpt_http_state, [{repeat, NumFiles}]}]},
-		{https, [parallel], CommonTests
-			++ [{testcase, wpt_http_state, [{repeat, NumFiles - NumDisabledTlsFiles}]}]},
+		{http, [parallel], CommonTests},
+%			++ [{testcase, wpt_http_state, [{repeat, NumFiles}]}]},
+		{https, [parallel], CommonTests},
+%			++ [{testcase, wpt_http_state, [{repeat, NumFiles - NumDisabledTlsFiles}]}]},
 		%% Websocket over HTTP/2 is currently not supported.
-		{h2c, [parallel], (CommonTests -- [wpt_secure_ws])
-			++ [{testcase, wpt_http_state, [{repeat, NumFiles}]}]},
-		{h2, [parallel], (CommonTests -- [wpt_secure_ws])
-			++ [{testcase, wpt_http_state, [{repeat, NumFiles - NumDisabledTlsFiles}]}]}
+		{h2c, [parallel], (CommonTests -- [wpt_secure_ws])},
+%			++ [{testcase, wpt_http_state, [{repeat, NumFiles}]}]},
+		{h2, [parallel], (CommonTests -- [wpt_secure_ws])}
+%			++ [{testcase, wpt_http_state, [{repeat, NumFiles - NumDisabledTlsFiles}]}]}
 	].
 
 init_per_group(Ref, Config0) when Ref =:= http; Ref =:= h2c ->
@@ -239,45 +239,100 @@ set_cookie_connect_tls(Config) ->
 	[{<<"a">>, <<"b">>}] = cow_cookie:parse_cookie(Body3),
 	gun:close(ConnPid).
 
--define(HOST, "web-platform.test").
+-define(WPT_HOST, "web-platform.test").
+
+%% WPT: browser-only tests
+%%
+%% cookie-enabled-noncookie-frame.html
+%% meta-blocked.html
+%% navigated-away.html
+%% prefix/document-cookie.non-secure.html
+%% prefix/__host.document-cookie.html
+%% prefix/__host.document-cookie.https.html
+%% prefix/__secure.document-cookie.html
+%% prefix/__secure.document-cookie.https.html
+%% secure/set-from-dom.https.sub.html
+%% secure/set-from-dom.sub.html
+
+%% @todo This fits better in gun_cookies as this is a parser thing. WPT: attributes/attributes-ctl
+
+%% @todo This is a redirect cookie test: attributes/domain.sub.html
+	%% attributes/resources/domain-child.sub.html
+
+%% @todo
+%% attributes/expires.html
+%% attributes/invalid.html
+%% attributes/max-age.html
+%% attributes/path.html
+%% attributes/path-redirect.html
+%% attributes/secure.https.html
+%% attributes/secure-non-secure.html
+	%% attributes/resources/secure-non-secure-child.html
+%% ?
+	%% attributes/resources/pathfakeout.html
+	%% attributes/resources/path-redirect-shared.js
+	%% attributes/resources/path.html
+	%% attributes/resources/path.html.headers
+	%% attributes/resources/path/one.html
+	%% attributes/resources/path/three.html
+	%% attributes/resources/path/two.html
+	%% attributes/resources/pathfakeout/one.html
 
 %% WPT: domain/domain-attribute-host-with-and-without-leading-period
+%%
+%% domain/domain-attribute-host-with-and-without-leading-period.sub.https.html
+%% domain/domain-attribute-host-with-and-without-leading-period.sub.https.html.sub.headers
 wpt_domain_with_and_without_leading_period(Config) ->
 	doc("Domain with and without leading period."),
 	#{
 		same_origin := [{<<"a">>, <<"c">>}],
 		subdomain := [{<<"a">>, <<"c">>}]
-	} = do_domain_test(Config, "domain_with_and_without_leading_period"),
+	} = do_wpt_domain_test(Config, "domain_with_and_without_leading_period"),
 	ok.
 
 %% WPT: domain/domain-attribute-host-with-leading-period
+%%
+%% domain/domain-attribute-host-with-leading-period.sub.https.html
+%% domain/domain-attribute-host-with-leading-period.sub.https.html.sub.headers
 wpt_domain_with_leading_period(Config) ->
 	doc("Domain with leading period."),
 	#{
 		same_origin := [{<<"a">>, <<"b">>}],
 		subdomain := [{<<"a">>, <<"b">>}]
-	} = do_domain_test(Config, "domain_with_leading_period"),
+	} = do_wpt_domain_test(Config, "domain_with_leading_period"),
 	ok.
 
+%% @todo WPT: domain/domain-attribute-idn-host
+%%
+%% domain/domain-attribute-idn-host.sub.https.html
+%% domain/support/idn-child.sub.https.html
+%% domain/support/idn.py
+
 %% WPT: domain/domain-attribute-matches-host
+%%
+%% domain/domain-attribute-matches-host.sub.https.html
+%% domain/domain-attribute-matches-host.sub.https.html.sub.headers
 wpt_domain_matches_host(Config) ->
 	doc("Domain matches host header."),
 	#{
 		same_origin := [{<<"a">>, <<"b">>}],
 		subdomain := [{<<"a">>, <<"b">>}]
-	} = do_domain_test(Config, "domain_matches_host"),
+	} = do_wpt_domain_test(Config, "domain_matches_host"),
 	ok.
 
 %% WPT: domain/domain-attribute-missing
+%%
+%% domain/domain-attribute-missing.sub.html
+%% domain/domain-attribute-missing.sub.html.headers
 wpt_domain_missing(Config) ->
 	doc("Domain attribute missing."),
 	#{
 		same_origin := [{<<"a">>, <<"b">>}],
 		subdomain := undefined
-	} = do_domain_test(Config, "domain_missing"),
+	} = do_wpt_domain_test(Config, "domain_missing"),
 	ok.
 
-do_domain_test(Config, TestCase) ->
+do_wpt_domain_test(Config, TestCase) ->
 	Protocol = config(protocol, Config),
 	{ok, ConnPid} = gun:open("localhost", config(port, Config), #{
 		transport => config(transport, Config),
@@ -285,14 +340,14 @@ do_domain_test(Config, TestCase) ->
 		cookie_store => gun_cookies_list:init()
 	}),
 	{ok, Protocol} = gun:await_up(ConnPid),
-	StreamRef1 = gun:get(ConnPid, ["/cookie-set?", TestCase], #{<<"host">> => ?HOST}),
+	StreamRef1 = gun:get(ConnPid, ["/cookie-set?", TestCase], #{<<"host">> => ?WPT_HOST}),
 	{response, fin, 204, Headers1} = gun:await(ConnPid, StreamRef1),
 	ct:log("Headers1:~n~p", [Headers1]),
-	StreamRef2 = gun:get(ConnPid, "/cookie-echo", #{<<"host">> => ?HOST}),
+	StreamRef2 = gun:get(ConnPid, "/cookie-echo", #{<<"host">> => ?WPT_HOST}),
 	{response, nofin, 200, _} = gun:await(ConnPid, StreamRef2),
 	{ok, Body2} = gun:await_body(ConnPid, StreamRef2),
 	ct:log("Body2:~n~p", [Body2]),
-	StreamRef3 = gun:get(ConnPid, "/cookie-echo", #{<<"host">> => "sub." ?HOST}),
+	StreamRef3 = gun:get(ConnPid, "/cookie-echo", #{<<"host">> => "sub." ?WPT_HOST}),
 	{response, nofin, 200, _} = gun:await(ConnPid, StreamRef3),
 	{ok, Body3} = gun:await_body(ConnPid, StreamRef3),
 	ct:log("Body3:~n~p", [Body3]),
@@ -302,6 +357,10 @@ do_domain_test(Config, TestCase) ->
 		subdomain => case Body3 of <<"UNDEF">> -> undefined; _ -> cow_cookie:parse_cookie(Body3) end
 	}.
 
+%% @todo
+%% encoding/charset.html
+
+%% @todo Remove! Replace.
 %% WPT: http-state/*-tests
 wpt_http_state(Config) ->
 	TestFile = do_request_test_file(Config),
@@ -336,7 +395,19 @@ wpt_http_state(Config) ->
 	ct:log("Headers2:~n~p", [Headers2]),
 	gun:close(ConnPid).
 
+%% @todo
+%% name/name-ctl.html
+%% name/name.html
+
+%% @todo
+%% ordering/ordering.sub.html
+%% ordering/ordering-child.sub.html
+
+%% WPT: partitioned-cookies (Not implemented; proposal.)
+
 %% WPT: path/default
+%%
+%% path/default.html
 wpt_path_default(Config) ->
 	doc("Cookie set on the default path can be retrieved."),
 	Protocol = config(protocol, Config),
@@ -367,6 +438,8 @@ wpt_path_default(Config) ->
 	gun:close(ConnPid).
 
 %% WPT: path/match
+%%
+%% path/match.html
 wpt_path_match(Config) ->
 	doc("Cookie path match."),
 	MatchTests = [
@@ -423,22 +496,25 @@ wpt_path_match(Config) ->
 	ok.
 
 %% WPT: prefix/__host.header
+%%
+%% prefix/__host.header.html
+%% prefix/__host.header.https.html
 wpt_prefix_host(Config) ->
 	doc("__Host- prefix."),
 	Tests = case config(transport, Config) of
 		tcp -> [
 			{<<"__Host-foo=bar; Path=/;">>, false},
-			{<<"__Host-foo=bar; Path=/;domain=" ?HOST>>, false},
+			{<<"__Host-foo=bar; Path=/;domain=" ?WPT_HOST>>, false},
 			{<<"__Host-foo=bar; Path=/;Max-Age=10">>, false},
 			{<<"__Host-foo=bar; Path=/;HttpOnly">>, false},
 			{<<"__Host-foo=bar; Secure; Path=/;">>, false},
-			{<<"__Host-foo=bar; Secure; Path=/;domain=" ?HOST>>, false},
+			{<<"__Host-foo=bar; Secure; Path=/;domain=" ?WPT_HOST>>, false},
 			{<<"__Host-foo=bar; Secure; Path=/;Max-Age=10">>, false},
 			{<<"__Host-foo=bar; Secure; Path=/;HttpOnly">>, false},
-			{<<"__Host-foo=bar; Secure; Path=/; Domain=" ?HOST "; ">>, false},
-			{<<"__Host-foo=bar; Secure; Path=/; Domain=" ?HOST "; domain=" ?HOST>>, false},
-			{<<"__Host-foo=bar; Secure; Path=/; Domain=" ?HOST "; Max-Age=10">>, false},
-			{<<"__Host-foo=bar; Secure; Path=/; Domain=" ?HOST "; HttpOnly">>, false},
+			{<<"__Host-foo=bar; Secure; Path=/; Domain=" ?WPT_HOST "; ">>, false},
+			{<<"__Host-foo=bar; Secure; Path=/; Domain=" ?WPT_HOST "; domain=" ?WPT_HOST>>, false},
+			{<<"__Host-foo=bar; Secure; Path=/; Domain=" ?WPT_HOST "; Max-Age=10">>, false},
+			{<<"__Host-foo=bar; Secure; Path=/; Domain=" ?WPT_HOST "; HttpOnly">>, false},
 			{<<"__Host-foo=bar; Secure; Path=/cookies/resources/list.py">>, false}
 		];
 		tls -> [
@@ -448,9 +524,9 @@ wpt_prefix_host(Config) ->
 			{<<"__Host-foo=bar; Secure; Path=/;">>, true},
 			{<<"__Host-foo=bar; Secure; Path=/;Max-Age=10">>, true},
 			{<<"__Host-foo=bar; Secure; Path=/;HttpOnly">>, true},
-			{<<"__Host-foo=bar; Secure; Path=/; Domain=" ?HOST "; ">>, false},
-			{<<"__Host-foo=bar; Secure; Path=/; Domain=" ?HOST "; Max-Age=10">>, false},
-			{<<"__Host-foo=bar; Secure; Path=/; Domain=" ?HOST "; HttpOnly">>, false},
+			{<<"__Host-foo=bar; Secure; Path=/; Domain=" ?WPT_HOST "; ">>, false},
+			{<<"__Host-foo=bar; Secure; Path=/; Domain=" ?WPT_HOST "; Max-Age=10">>, false},
+			{<<"__Host-foo=bar; Secure; Path=/; Domain=" ?WPT_HOST "; HttpOnly">>, false},
 			{<<"__Host-foo=bar; Secure; Path=/cookies/resources/list.py">>, false}
 		]
 	end,
@@ -459,16 +535,19 @@ wpt_prefix_host(Config) ->
 	ok.
 
 %% WPT: prefix/__secure.header
+%%
+%% prefix/__secure.header.html
+%% prefix/__secure.header.https.html
 wpt_prefix_secure(Config) ->
 	doc("__Secure- prefix."),
 	Tests = case config(transport, Config) of
 		tcp -> [
 			{<<"__Secure-foo=bar; Path=/;">>, false},
-			{<<"__Secure-foo=bar; Path=/;domain=" ?HOST>>, false},
+			{<<"__Secure-foo=bar; Path=/;domain=" ?WPT_HOST>>, false},
 			{<<"__Secure-foo=bar; Path=/;Max-Age=10">>, false},
 			{<<"__Secure-foo=bar; Path=/;HttpOnly">>, false},
 			{<<"__Secure-foo=bar; Secure; Path=/;">>, false},
-			{<<"__Secure-foo=bar; Secure; Path=/;domain=" ?HOST>>, false},
+			{<<"__Secure-foo=bar; Secure; Path=/;domain=" ?WPT_HOST>>, false},
 			{<<"__Secure-foo=bar; Secure; Path=/;Max-Age=10">>, false},
 			{<<"__Secure-foo=bar; Secure; Path=/;HttpOnly">>, false}
 		];
@@ -497,13 +576,13 @@ do_wpt_prefix_common(Config, TestCase, Expected, Name) ->
 	{ok, Protocol} = gun:await_up(ConnPid),
 	%% Set and retrieve the cookie.
 	StreamRef1 = gun:get(ConnPid, "/cookies/resources/set.py?prefix", #{
-		<<"host">> => ?HOST,
+		<<"host">> => ?WPT_HOST,
 		<<"please-set-cookie">> => TestCase
 	}),
 	{response, fin, 204, Headers1} = gun:await(ConnPid, StreamRef1),
 	ct:log("Headers1:~n~p", [Headers1]),
 	StreamRef2 = gun:get(ConnPid, "/cookies/resources/echo.py", #{
-		<<"host">> => ?HOST
+		<<"host">> => ?WPT_HOST
 	}),
 	{response, nofin, 200, _} = gun:await(ConnPid, StreamRef2),
 	{ok, Body2} = gun:await_body(ConnPid, StreamRef2),
@@ -518,9 +597,16 @@ do_wpt_prefix_common(Config, TestCase, Expected, Name) ->
 	end,
 	gun:close(ConnPid).
 
-%% WPT: samesite-none-secure/ (Not implemented.)
 %% WPT: samesite/ (Not implemented.)
+%% WPT: samesite-none-secure/ (Not implemented.)
+%% WPT: schemeful-same-site/ (Not implemented.)
 
+%% WPT: secure/set-from-http.*
+%%
+%% secure/set-from-http.sub.html
+%% secure/set-from-http.sub.html.headers
+%% secure/set-from-http.https.sub.html
+%% secure/set-from-http.https.sub.html.headers
 wpt_secure(Config) ->
 	doc("Secure attribute."),
 	case config(transport, Config) of
@@ -554,6 +640,9 @@ do_wpt_secure_common(Config, TestCase) ->
 	end.
 
 %% WPT: secure/set-from-ws*
+%%
+%% secure/set-from-ws.sub.html
+%% secure/set-from-wss.https.sub.html
 wpt_secure_ws(Config) ->
 	doc("Secure attribute in Websocket upgrade response."),
 	case config(transport, Config) of
@@ -593,3 +682,104 @@ do_wpt_secure_ws_common(Config) ->
 		<<"UNDEF">> -> undefined;
 		_ -> cow_cookie:parse_cookie(Body2)
 	end.
+
+%% @todo
+%% size/attributes.www.sub.html
+%% size/name-and-value.html
+
+%% WPT: value/value
+%%
+%% value/value.html
+wpt_value(Config) ->
+	Tests = do_load_json("value"),
+	_ = [begin
+		#{
+			<<"name">> := Name,
+			<<"cookie">> := Cookie,
+			<<"expected">> := Expected
+		} = Test,
+		false = maps:is_key(<<"defaultPath">>, Test),
+		do_wpt_set_test(Name, Cookie, Expected, Config)
+	end || Test <- Tests,
+		%% @todo The test that is disabled has a \n in the cookie value.
+		%%       Somehow that \n is kept all the way through. Look why.
+		maps:get(<<"expected">>, Test) =/= <<"test=13">>],
+	ok.
+
+%% WPT: value/value-ctl
+%%
+%% value/value-ctl.html
+%%
+%% The original tests use the DOM. We can't do that so
+%% we use a simple HTTP test instead. The original test
+%% also includes a string representation of the CTL in
+%% the cookie value. We don't bother.
+wpt_value_ctl(Config) ->
+	%% Control characters are defined by RFC5234 to be %x00-1F / %x7F.
+	%% We exclude \r for HTTP/1.1 because this causes errors
+	%% at the header parsing level.
+	CTLs0 = lists:seq(0, 16#1F) ++ [16#7F],
+	CTLs = case config(protocol, Config) of
+		http -> CTLs0 -- "\r";
+		http2 -> CTLs0
+	end,
+	%% All CTLs except \t should cause the cookie to be rejected.
+	_ = [case CTL of
+		$\t ->
+			do_wpt_set_test(<<"test">>,
+				<<"test=", CTL, "value">>,
+				%% The original test retains the CTL here because
+				%% it uses the DOM. The Set-Cookie algorithm requires
+				%% us to drop it.
+				<<"test=value">>, Config);
+		_ ->
+			do_wpt_set_test(<<"test">>,
+				<<"test=", CTL, "value">>,
+				<<>>, Config)
+	end || CTL <- CTLs],
+	ok.
+
+%% JSON files are created by taking the Javascript Object
+%% from the HTML files in the WPT suite, using the browser
+%% Developer console to convert into JSON:
+%%   Obj = <Paste>
+%%   JSON.stringify(Obj)
+%% Then copying the result into the JSON file; removing
+%% the quoting (first and last character) and finally
+%% fixing the escaping in Vim using:
+%%   :%s/\\\\/\\/g
+do_load_json(File0) ->
+	File = "../../test/wpt/cookies/" ++ File0 ++ ".json",
+	{ok, Bin} = file:read_file(File),
+	jsx:decode(Bin, [{return_maps, true}]).
+
+%% Equivalent to httpCookieTest with defaultPath != true.
+do_wpt_set_test(Name, Cookie, Expected, Config) ->
+	ct:log("Name: ~s", [Name]),
+	Protocol = config(protocol, Config),
+	{ok, ConnPid} = gun:open("localhost", config(port, Config), #{
+		transport => config(transport, Config),
+		protocols => [Protocol],
+		cookie_store => gun_cookies_list:init()
+	}),
+	{ok, Protocol} = gun:await_up(ConnPid),
+	StreamRef = gun:get(ConnPid,
+		["/cookie-set?ttb=", cow_qs:urlencode(term_to_binary(Cookie))],
+		#{<<"host">> => ?WPT_HOST}),
+	{response, fin, 204, Headers} = gun:await(ConnPid, StreamRef),
+	ct:log("Headers:~n~p", [Headers]),
+	#{cookie_store := Store} = gun:info(ConnPid),
+	ct:log("Store:~n~p", [Store]),
+	Result = case gun_cookies:add_cookie_header(
+		case config(transport, Config) of
+			tcp -> <<"http">>;
+			tls -> <<"https">>
+		end,
+		<<"home.example.org">>, <<"/">>, [], Store) of
+		{[{<<"cookie">>, Result0}], _} ->
+			Result0;
+		{[], _} ->
+			<<>>
+	end,
+	{Name, Cookie, Expected} = {Name, Cookie, unicode:characters_to_binary(Result)},
+	gun:close(ConnPid).
